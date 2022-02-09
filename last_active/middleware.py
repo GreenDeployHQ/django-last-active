@@ -13,6 +13,6 @@ class LastActiveMiddleware(object):
     def __call__(self, request):
 
         if request.user.is_authenticated:
-            user_seen(request.user)
+            user_seen(request)
 
         return self.get_response(request)
