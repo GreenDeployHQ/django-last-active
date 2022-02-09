@@ -1,13 +1,23 @@
 import datetime
 import time
 
-from django.contrib.sites.models import Site
+try:
+    from wagtail.core.models import Site
+except ImportError:
+    from django.contrib.sites.models import Site
+
 from django.core.cache import cache
 from django.db import models
 from django.utils import timezone
 
 from . import settings
 
+
+def get_site_instance_for_request(request):
+    if hasattr(Site, "find_for_request"):
+        # Wagtail site
+        return Site.find_for_request(request)
+    return Site.objects.get_current()
 
 class LastActiveManager(models.Manager):
     """
@@ -16,7 +26,7 @@ class LastActiveManager(models.Manager):
     """
 
     def seen(
-        self, user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None, force=False
+        self, request, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None, force=False
     ):
         """
         Mask an user last on database seen with optional module and site
@@ -25,8 +35,10 @@ class LastActiveManager(models.Manager):
         The last seen object is only updates is LAST_SEEN_INTERVAL seconds
         passed from last update or force=True
         """
+        user = request.user
         if not site:
-            site = Site.objects.get_current()
+            site = get_site_instance_for_request(request)
+
         args = {
             "user": user,
             "site": site,
@@ -54,8 +66,9 @@ class LastActiveManager(models.Manager):
 
 
 class LastActive(models.Model):
+    id = models.BigAutoField(primary_key=True)
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="last_active")
     module = models.CharField(default=settings.LAST_SEEN_DEFAULT_MODULE, max_length=20)
     last_active = models.DateTimeField(default=timezone.now)
 
@@ -65,7 +78,7 @@ class LastActive(models.Model):
         unique_together = (("user", "site", "module"),)
         ordering = ("-last_active",)
 
-    def __unicode__(self):
+    def __str__(self):
         return "%s on %s" % (self.user, self.last_active)
 
 
@@ -76,7 +89,7 @@ def get_cache_key(site, module, user):
     return "last_active:%s:%s:%s" % (site.id, module, user.pk)
 
 
-def user_seen(user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
+def user_seen(request, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
     """
     Mask an user last seen on database if LAST_SEEN_INTERVAL seconds
     have passed from last database write.
@@ -84,8 +97,9 @@ def user_seen(user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
     If module not provided uses LAST_SEEN_DEFAULT_MODULE from settings
     If site not provided uses current site
     """
+    user = request.user
     if not site:
-        site = Site.objects.get_current()
+        site = get_site_instance_for_request(request)
     cache_key = get_cache_key(site, module, user)
     # compute limit to update db
     limit = time.time() - settings.LAST_SEEN_INTERVAL
@@ -94,9 +108,9 @@ def user_seen(user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
         # mark the database and the cache, if interval is cleared force
         # database write
         if seen == -1:
-            LastActive.objects.seen(user, module=module, site=site, force=True)
+            LastActive.objects.seen(request, module=module, site=site, force=True)
         else:
-            LastActive.objects.seen(user, module=module, site=site)
+            LastActive.objects.seen(request, module=module, site=site)
         timeout = settings.LAST_SEEN_INTERVAL
         cache.set(cache_key, time.time(), timeout)
 
@@ -104,7 +118,7 @@ def user_seen(user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
 def clear_interval(user):
     """
     Clear cached interval from last database write timestamp
-    Usefuf if you want to force a database write for an user
+    Useful if you want to force a database write for an user
     """
     keys = {}
     for last_active in LastActive.objects.filter(user=user):

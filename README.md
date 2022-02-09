@@ -31,3 +31,7 @@ The default module used on the middleware. The default value is default.
 **LAST_SEEN_INTERVAL**
 
 How often is the last seen timestamp updated to the database. The default is 2 hours.
+
+**LAST_SEEN_SITE_MODEL**
+
+Allows a different Site model to be used, introduced to allow for Wagtail Sites. If you are using wagtail, set this to ``wagtailcore.Site``. Defaults to the django ``Site`` model.
