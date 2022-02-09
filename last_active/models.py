@@ -68,7 +68,7 @@ class LastActiveManager(models.Manager):
 class LastActive(models.Model):
     id = models.BigAutoField(primary_key=True)
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="last_active")
     module = models.CharField(default=settings.LAST_SEEN_DEFAULT_MODULE, max_length=20)
     last_active = models.DateTimeField(default=timezone.now)
 
