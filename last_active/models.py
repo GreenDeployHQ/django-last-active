@@ -104,7 +104,7 @@ def user_seen(user, module=settings.LAST_SEEN_DEFAULT_MODULE, site=None):
 def clear_interval(user):
     """
     Clear cached interval from last database write timestamp
-    Usefuf if you want to force a database write for an user
+    Useful if you want to force a database write for an user
     """
     keys = {}
     for last_active in LastActive.objects.filter(user=user):
